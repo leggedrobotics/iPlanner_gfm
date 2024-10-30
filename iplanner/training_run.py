@@ -20,7 +20,7 @@ from datetime import datetime
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 
-from planner_net import PlannerNet
+from planner_net import PlannerNet, PlannerNetDino
 from dataloader import PlannerData, MultiEpochsDataLoader
 from torchutil import EarlyStopScheduler
 from traj_cost import TrajCost
@@ -47,11 +47,12 @@ class PlannerNetTrainer:
         self.wandb_run = wandb.init(
             # set the wandb project where this run will be logged
             project="imperative-path-planning",
+            entity="geometric-foundational-model",
             # Set the run name to current date and time
-            name=date_time_str + "adamW",
+            name="Dino-S16-finetune" + date_time_str,
             config={
                 "learning_rate": self.args.lr,
-                "architecture": "PlannerNet",  # Replace with your actual architecture
+                "architecture": "PlannerNetDino",  # Replace with your actual architecture
                 "dataset": self.args.data_root,  # Assuming this holds the dataset name
                 "epochs": self.args.epochs,
                 "goal_step": self.args.goal_step,
@@ -65,7 +66,7 @@ class PlannerNetTrainer:
             self.config = json.load(json_file)
 
     def prepare_model(self):
-        self.net = PlannerNet(self.args.in_channel, self.args.knodes)
+        self.net = PlannerNetDino(self.args.in_channel, self.args.knodes)
         if self.args.resume == True or not self.args.training:
             self.net, self.best_loss = torch.load(self.args.model_save, map_location=torch.device("cpu"))
             print("Resume training from best loss: {}".format(self.best_loss))

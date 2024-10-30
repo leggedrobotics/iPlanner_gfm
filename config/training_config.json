@@ -3,7 +3,7 @@
         "data-root": "data",
         "env-id": "training_list.txt",
         "env_type": "TrainingData",
-        "crop-size": [360, 640],
+        "crop-size": [192, 320],
         "max-camera-depth": 10.0
     },
     "modelConfig": {

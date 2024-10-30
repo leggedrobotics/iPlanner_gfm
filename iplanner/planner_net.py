@@ -9,6 +9,7 @@
 
 import torch
 from percept_net import PerceptNet
+from vit import ViTFeatureExtractor
 import torch.nn as nn
 
 
@@ -23,6 +24,19 @@ class PlannerNet(nn.Module):
         x, c = self.decoder(x, goal)
         return x, c
 
+class PlannerNetDino(nn.Module):
+    def __init__(self, encoder_channel=64, k=5):
+        super().__init__()
+        self.encoder = ViTFeatureExtractor()
+        self.skip_conv = nn.Sequential(nn.Conv2d(3, 128, kernel_size=16, stride=16), nn.BatchNorm2d(128), nn.ReLU())
+        self.decoder = Decoder(512, encoder_channel, k)
+
+    def forward(self, x, goal):
+        x1 = self.encoder(x)
+        x2 = self.skip_conv(x)
+        x = torch.cat((x1, x2), dim=1)
+        x, c = self.decoder(x, goal)
+        return x, c
 
 class Decoder(nn.Module):
     def __init__(self, in_channels, goal_channels, k=5):
