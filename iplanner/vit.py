@@ -4,11 +4,14 @@ import torch.nn.functional as F
 import math
 
 class ViTFeatureExtractor(nn.Module):
-    def __init__(self):
+    def __init__(self, freeze_backbone=False):
         super().__init__()
         self.vit = torch.hub.load('facebookresearch/dino:main', 'dino_vits16', pretrained=True)
         self.vit.head = nn.Identity()  # Remove classification head
         self.patch_size = 16
+        if freeze_backbone:
+            for param in self.vit.blocks.parameters():
+                param.requires_grad = False
     
     def interpolate_pos_embed(self, x, h, w):
         npatch = x.shape[1] - 1

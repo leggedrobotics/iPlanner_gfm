@@ -27,9 +27,12 @@ class PlannerNet(nn.Module):
 class PlannerNetDino(nn.Module):
     def __init__(self, encoder_channel=64, k=5):
         super().__init__()
-        self.encoder = ViTFeatureExtractor()
+        self.encoder = ViTFeatureExtractor(freeze_backbone=True)
         self.skip_conv = nn.Sequential(nn.Conv2d(3, 128, kernel_size=16, stride=16), nn.BatchNorm2d(128), nn.ReLU())
         self.decoder = Decoder(512, encoder_channel, k)
+        for name, param in self.named_parameters():
+            print(f"Parameter: {name}, Requires Grad: {param.requires_grad}")
+
 
     def forward(self, x, goal):
         x1 = self.encoder(x)

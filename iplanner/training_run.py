@@ -52,7 +52,7 @@ class PlannerNetTrainer:
             project="imperative-path-planning",
             entity="geometric-foundational-model",
             # Set the run name to current date and time
-            name="Dino-S16-finetune" + date_time_str,
+            name=f'{self.args.exp_name}_' + date_time_str,
             config={
                 "learning_rate": self.args.lr,
                 "architecture": "PlannerNetDino",  # Replace with your actual architecture
@@ -70,6 +70,8 @@ class PlannerNetTrainer:
 
     def prepare_model(self):
         self.net = PlannerNetDino(self.args.in_channel, self.args.knodes)
+        if not os.path.exists(os.path.dirname(self.args.model_save)):
+            os.makedirs(os.path.dirname(self.args.model_save))
         if self.args.resume == True or not self.args.training:
             self.net, self.best_loss = torch.load(self.args.model_save, map_location=torch.device("cpu"))
             print("Resume training from best loss: {}".format(self.best_loss))
@@ -286,6 +288,8 @@ class PlannerNetTrainer:
     def parse_args(self):
         parser = argparse.ArgumentParser(description='Training script for PlannerNet')
 
+        current_date = datetime.now().strftime("%d-%m-%Y-%H-%M-%S")
+        
         # dataConfig
         parser.add_argument("--data-root", type=str, default=os.path.join(self.root_folder, self.config['dataConfig'].get('data-root')), help="dataset root folder")
         parser.add_argument('--env-id', type=str, default=self.config['dataConfig'].get('env-id'), help='environment id list')
@@ -323,8 +327,13 @@ class PlannerNetTrainer:
         parser.add_argument('--sensor-offsetX-ANYmal', type=float, default=self.config['sensorConfig'].get('sensor-offsetX-ANYmal'), help='anymal front camera sensor offset in X axis')
         parser.add_argument("--fear-ahead-dist", type=float, default=self.config['sensorConfig'].get('fear-ahead-dist'), help="fear lookahead distance")
 
+        # Experiment Name
+        parser.add_argument('--exp-name', type=str, default="iplanner", help='experiment')
+
         self.args = parser.parse_args()
 
+        self.args.model_save = os.path.join(self.root_folder, f"models/{current_date}/{self.args.exp_name}.pt")
+        
  
 def main():
     trainer = PlannerNetTrainer()

@@ -19,8 +19,8 @@ from scipy.spatial.transform import Rotation as R
 import open3d.visualization.rendering as rendering
 from typing import List, Optional
 
-IMAGE_WIDTH = 640
-IMAGE_HEIGHT = 360
+IMAGE_WIDTH = 320
+IMAGE_HEIGHT = 192
 MESH_SIZE = 0.5
 
 class TrajViz:    
