@@ -58,3 +58,23 @@ class ViTFeatureExtractor(nn.Module):
         x = x[:, 1:].reshape(B, -1, h // self.patch_size, w // self.patch_size)  # Remove CLS token
 
         return x
+
+class Dinov2FeatureExtractor(ViTFeatureExtractor):
+    
+    def __init__(self, freeze_backbone=False, pretrained_ckpt = None):
+        super().__init__()
+        # self.vit = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14_lc')
+        # self.vit = VisionTransformer(img_size=224, patch_size=16, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True)
+        self.vit = torch.hub.load('facebookresearch/dino:main', 'dino_vits16', pretrained=False)
+        
+        if pretrained_ckpt is not None:
+            ckpt = torch.load(pretrained_ckpt)
+            new_ckpt = {k.replace('backbone.', ''): v for k, v in ckpt['teacher'].items()}
+            self.vit.load_state_dict(new_ckpt, strict=False)
+
+        self.vit.head = nn.Identity()  # Remove classification head
+        self.patch_size = 16
+        if freeze_backbone:
+            for param in self.vit.blocks.parameters():
+                param.requires_grad = False
+    

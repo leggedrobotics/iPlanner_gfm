@@ -9,7 +9,7 @@
 
 import torch
 from percept_net import PerceptNet
-from vit import ViTFeatureExtractor
+from vit import ViTFeatureExtractor, Dinov2FeatureExtractor
 import torch.nn as nn
 
 
@@ -27,7 +27,7 @@ class PlannerNet(nn.Module):
 class PlannerNetDino(nn.Module):
     def __init__(self, encoder_channel=64, k=5):
         super().__init__()
-        self.encoder = ViTFeatureExtractor(freeze_backbone=True)
+        self.encoder = Dinov2FeatureExtractor(freeze_backbone=True, pretrained_ckpt="models/teacher_checkpoint.pth")
         self.skip_conv = nn.Sequential(nn.Conv2d(3, 128, kernel_size=16, stride=16), nn.BatchNorm2d(128), nn.ReLU())
         self.decoder = Decoder(512, encoder_channel, k)
         for name, param in self.named_parameters():
