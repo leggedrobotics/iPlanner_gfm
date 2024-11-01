@@ -26,14 +26,26 @@ from torch.utils.data import DataLoader
 from torchutil import EarlyStopScheduler
 from traj_cost import TrajCost
 from traj_viz import TrajViz
+import numpy as np
 
 torch.set_default_dtype(torch.float32)
+
+def set_seeds(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)  # If using multi-GPU
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    print(f"Random seed {seed} has been set.")
 
 class PlannerNetTrainer:
     def __init__(self):
         self.root_folder = os.getenv('EXPERIMENT_DIRECTORY', os.getcwd())
         self.load_config()
         self.parse_args()
+        set_seeds(self.args.seed)
         self.prepare_model()
         self.prepare_data()
         if self.args.training == True:
@@ -52,7 +64,7 @@ class PlannerNetTrainer:
             project="imperative-path-planning",
             entity="geometric-foundational-model",
             # Set the run name to current date and time
-            name=f'{self.args.exp_name}_' + date_time_str,
+            name=f'{self.args.exp_name}',
             config={
                 "learning_rate": self.args.lr,
                 "architecture": self.args.encoder,  # Replace with your actual architecture
@@ -310,9 +322,9 @@ class PlannerNetTrainer:
         parser.add_argument("--goal-step", type=int, default=self.config['modelConfig'].get('goal-step'), help="number of frames betwen goals")
         parser.add_argument("--max-episode", type=int, default=self.config['modelConfig'].get('max-episode-length'), help="maximum episode frame length")
         parser.add_argument("--encoder", type=str, default=self.config['modelConfig'].get('encoder'), help="encoder type")
-        parser.add_argument("--pretrained", type=str, default=self.config['modelConfig'].get('pretrained'), help="Use pretrained weights")
-        parser.add_argument("--pretrained_weights", type=str, default=self.config['modelConfig'].get('pretrained_weights'), help="Path to pretrained weights")
-        parser.add_argument("--freeze-backbone", type=str, default=self.config['modelConfig'].get('freeze-backbone'), help="Freeze backbone weights")
+        parser.add_argument("--pretrained", action='store_true', default=self.config['modelConfig'].get('pretrained', False), help="Use pretrained weights")
+        parser.add_argument("--pretrained-weights", type=str, default=self.config['modelConfig'].get('pretrained-weights'), help="Path to pretrained weights")
+        parser.add_argument("--freeze-backbone", action='store_true', default=self.config['modelConfig'].get('freeze-backbone', False), help="freeze backbone")
 
         # trainingConfig
         parser.add_argument('--training', type=str, default=self.config['trainingConfig'].get('training'))
@@ -325,6 +337,7 @@ class PlannerNetTrainer:
         parser.add_argument("--w-decay", type=float, default=self.config['trainingConfig'].get('w-decay'), help="weight decay of the optimizer")
         parser.add_argument("--num-workers", type=int, default=self.config['trainingConfig'].get('num-workers'), help="number of workers for dataloader")
         parser.add_argument("--gpu-id", type=int, default=self.config['trainingConfig'].get('gpu-id'), help="GPU id")
+        parser.add_argument("--seed", type=int, default=self.config['trainingConfig'].get('seed'), help="random seed")
 
         # logConfig
         parser.add_argument("--log-save", type=str, default=os.path.join(self.root_folder, self.config['logConfig'].get('log-save')), help="train log file")

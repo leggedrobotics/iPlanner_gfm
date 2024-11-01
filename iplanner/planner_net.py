@@ -27,7 +27,7 @@ class PlannerNet(nn.Module):
 class PlannerNetDino(nn.Module):
     def __init__(self, encoder_channel=64, k=5, encoder="dino", pretrained=False, pretrained_weights="models/teacher_checkpoint.pth", freeze_backbone=False):
         super().__init__()
-
+        print(f"Using Encoder: {encoder} pretrained: {pretrained} freeze_backbone: {freeze_backbone}" )
         if encoder == "dinos16": # ViT-S16 (w/wo DINO Pretraining)
             self.encoder = ViTFeatureExtractor(freeze_backbone=freeze_backbone, pretrained=pretrained)
         

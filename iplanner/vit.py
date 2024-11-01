@@ -10,6 +10,7 @@ class ViTFeatureExtractor(nn.Module):
         self.vit.head = nn.Identity()  # Remove classification head
         self.patch_size = 16
         if freeze_backbone:
+            print("Freezing Backbone")
             for param in self.vit.blocks.parameters():
                 param.requires_grad = False
     
@@ -68,6 +69,7 @@ class Dinov2FeatureExtractor(ViTFeatureExtractor):
         self.vit = torch.hub.load('facebookresearch/dino:main', 'dino_vits16', pretrained=False)
         
         if pretrained_ckpt is not None:
+            print(f"Loading pretrained weights from {pretrained_ckpt}")
             ckpt = torch.load(pretrained_ckpt)
             new_ckpt = {k.replace('backbone.', ''): v for k, v in ckpt['teacher'].items()}
             self.vit.load_state_dict(new_ckpt, strict=False)
@@ -75,6 +77,7 @@ class Dinov2FeatureExtractor(ViTFeatureExtractor):
         self.vit.head = nn.Identity()  # Remove classification head
         self.patch_size = 16
         if freeze_backbone:
+            print("Freezing Backbone")
             for param in self.vit.blocks.parameters():
                 param.requires_grad = False
     
