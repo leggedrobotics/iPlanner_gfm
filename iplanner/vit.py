@@ -4,9 +4,9 @@ import torch.nn.functional as F
 import math
 
 class ViTFeatureExtractor(nn.Module):
-    def __init__(self, freeze_backbone=False):
+    def __init__(self, freeze_backbone=False, pretrained=True, **kwargs):
         super().__init__()
-        self.vit = torch.hub.load('facebookresearch/dino:main', 'dino_vits16', pretrained=True)
+        self.vit = torch.hub.load('facebookresearch/dino:main', 'dino_vits16', pretrained=pretrained)
         self.vit.head = nn.Identity()  # Remove classification head
         self.patch_size = 16
         if freeze_backbone:
@@ -61,7 +61,7 @@ class ViTFeatureExtractor(nn.Module):
 
 class Dinov2FeatureExtractor(ViTFeatureExtractor):
     
-    def __init__(self, freeze_backbone=False, pretrained_ckpt = None):
+    def __init__(self, freeze_backbone=False, pretrained_ckpt = None, **kwargs):
         super().__init__()
         # self.vit = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14_lc')
         # self.vit = VisionTransformer(img_size=224, patch_size=16, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True)

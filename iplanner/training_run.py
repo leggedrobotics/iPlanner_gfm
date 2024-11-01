@@ -55,7 +55,7 @@ class PlannerNetTrainer:
             name=f'{self.args.exp_name}_' + date_time_str,
             config={
                 "learning_rate": self.args.lr,
-                "architecture": "PlannerNetDino",  # Replace with your actual architecture
+                "architecture": self.args.encoder,  # Replace with your actual architecture
                 "dataset": self.args.data_root,  # Assuming this holds the dataset name
                 "epochs": self.args.epochs,
                 "goal_step": self.args.goal_step,
@@ -69,7 +69,12 @@ class PlannerNetTrainer:
             self.config = json.load(json_file)
 
     def prepare_model(self):
-        self.net = PlannerNetDino(self.args.in_channel, self.args.knodes)
+        if self.args.encoder == "resnet18":
+            self.net = PlannerNet(self.args.in_channel, self.args.knodes)
+        else
+            self.net = PlannerNetDino(self.args.in_channel, self.args.knodes, self.args.encoder, self.args.pretrained, self.args.pretrained_weights, self.args.freeze_backbone)
+
+
         if not os.path.exists(os.path.dirname(self.args.model_save)):
             os.makedirs(os.path.dirname(self.args.model_save))
         if self.args.resume == True or not self.args.training:
@@ -304,6 +309,10 @@ class PlannerNetTrainer:
         parser.add_argument("--knodes", type=int, default=self.config['modelConfig'].get('knodes'), help="number of max nodes predicted")
         parser.add_argument("--goal-step", type=int, default=self.config['modelConfig'].get('goal-step'), help="number of frames betwen goals")
         parser.add_argument("--max-episode", type=int, default=self.config['modelConfig'].get('max-episode-length'), help="maximum episode frame length")
+        parser.add_argument("--encoder", type=str, default=self.config['modelConfig'].get('encoder'), help="encoder type")
+        parser.add_argument("--pretrained", type=str, default=self.config['modelConfig'].get('pretrained'), help="Use pretrained weights")
+        parser.add_argument("--pretrained_weights", type=str, default=self.config['modelConfig'].get('pretrained_weights'), help="Path to pretrained weights")
+        parser.add_argument("--freeze-backbone", type=str, default=self.config['modelConfig'].get('freeze-backbone'), help="Freeze backbone weights")
 
         # trainingConfig
         parser.add_argument('--training', type=str, default=self.config['trainingConfig'].get('training'))

@@ -25,9 +25,17 @@ class PlannerNet(nn.Module):
         return x, c
 
 class PlannerNetDino(nn.Module):
-    def __init__(self, encoder_channel=64, k=5):
+    def __init__(self, encoder_channel=64, k=5, encoder="dino", pretrained=False, pretrained_weights="models/teacher_checkpoint.pth", freeze_backbone=False):
         super().__init__()
-        self.encoder = Dinov2FeatureExtractor(freeze_backbone=True, pretrained_ckpt="models/teacher_checkpoint.pth")
+
+        if encoder == "dinos16": # ViT-S16 (w/wo DINO Pretraining)
+            self.encoder = ViTFeatureExtractor(freeze_backbone=freeze_backbone, pretrained=pretrained)
+        
+        elif encoder == "dinos16d": # Dino-S16-Depth
+            self.encoder = Dinov2FeatureExtractor(freeze_backbone=freeze_backbone, pretrained_ckpt=pretrained_weights)
+        else:
+            raise ValueError("Invalid Encoder")
+
         self.skip_conv = nn.Sequential(nn.Conv2d(3, 128, kernel_size=16, stride=16), nn.BatchNorm2d(128), nn.ReLU())
         self.decoder = Decoder(512, encoder_channel, k)
         for name, param in self.named_parameters():
