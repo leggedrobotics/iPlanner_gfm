@@ -71,10 +71,10 @@ class PlannerNetTrainer:
     def prepare_model(self):
         if self.args.encoder == "resnet18":
             self.net = PlannerNet(self.args.in_channel, self.args.knodes)
-        else
+        else:
             self.net = PlannerNetDino(self.args.in_channel, self.args.knodes, self.args.encoder, self.args.pretrained, self.args.pretrained_weights, self.args.freeze_backbone)
 
-
+        print("Encoder: ", self.args.encoder, "Pretrained: ", self.args.pretrained, "Freeze Backbone: ", self.args.freeze_backbone)
         if not os.path.exists(os.path.dirname(self.args.model_save)):
             os.makedirs(os.path.dirname(self.args.model_save))
         if self.args.resume == True or not self.args.training:
