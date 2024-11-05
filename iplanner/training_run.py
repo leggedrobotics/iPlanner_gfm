@@ -46,12 +46,13 @@ class PlannerNetTrainer:
         self.load_config()
         self.parse_args()
         set_seeds(self.args.seed)
-        self.prepare_model()
         self.prepare_data()
-        if self.args.training == True:
-            self.init_wandb()
-        else:
-            print("Testing Mode")
+        self.prepare_model()
+        self.init_wandb()
+        # if self.args.training == True:
+        #     self.init_wandb()
+        # else:
+        #     print("Testing Mode")
         
     def init_wandb(self):
         # Convert to string in the format you prefer
@@ -101,10 +102,12 @@ class PlannerNetTrainer:
             self.net = self.net.cuda(self.args.gpu_id)
 
         self.optimizer = optim.AdamW(self.net.parameters(), lr=self.args.lr, weight_decay=self.args.w_decay)
-        self.scheduler = EarlyStopScheduler(self.optimizer, factor=self.args.factor, verbose=True, min_lr=self.args.min_lr, patience=self.args.patience)
+        # self.scheduler = EarlyStopScheduler(self.optimizer, factor=self.args.factor, verbose=True, min_lr=self.args.min_lr, patience=self.args.patience)
+        self.scheduler = optim.lr_scheduler.OneCycleLR(self.optimizer , max_lr=self.args.lr, steps_per_epoch=self.total_batches, epochs=self.args.epochs, pct_start=0.1)
 
     def prepare_data(self):
-        ids_path = os.path.join(self.args.data_root, self.args.env_id)
+        
+        ids_path = os.path.join(self.root_folder, "data", self.args.env_id)
         with open(ids_path) as f:
             self.env_list = [line.rstrip() for line in f.readlines()]
 
@@ -115,11 +118,14 @@ class PlannerNetTrainer:
         total_img_data = 0
         track_id = 0
         test_env_id = min(self.args.test_env_id, len(self.env_list)-1)
-        
+        self.total_batches = 0
         self.train_loader_list = []
         self.val_loader_list   = []
+        self.test_loader_list  = []
         self.traj_cost_list    = []
         self.traj_viz_list     = []
+        self.test_traj_cost_list = []
+        self.test_traj_viz_list = []
         
         for env_name in tqdm.tqdm(self.env_list):
             if not self.args.training and track_id != test_env_id:
@@ -145,9 +151,12 @@ class PlannerNetTrainer:
                                      max_episode=self.args.max_episode,
                                      max_depth=self.args.max_camera_depth)
             
+            print(f"Env Name: {env_name} | Number of images: {len(train_data)}")
+
             total_img_data += len(train_data)
             train_loader = DataLoader(train_data, batch_size=self.args.batch_size, shuffle=True, num_workers=2)
             self.train_loader_list.append(train_loader)
+            self.total_batches += len(train_loader)
 
             val_data = PlannerData(root=data_path,
                                    train=False,
@@ -158,7 +167,7 @@ class PlannerNetTrainer:
                                    max_episode=self.args.max_episode,
                                    max_depth=self.args.max_camera_depth)
 
-            val_loader = DataLoader(val_data, batch_size=self.args.batch_size, shuffle=True, num_workers=2)
+            val_loader = DataLoader(val_data, batch_size=self.args.batch_size, shuffle=False, num_workers=2)
             self.val_loader_list.append(val_loader)
 
             # Load Map and Trajectory Class
@@ -171,8 +180,48 @@ class PlannerNetTrainer:
             track_id += 1
             
         print("Data Loading Completed!")
-        print("Number of image: %d | Number of goal-image pairs: %d"%(total_img_data, total_img_data * (int)(self.args.max_episode / self.args.goal_step)))
+        print("Number of image: %d | Number of goal-image pairs: %d"%(total_img_data / (int)(self.args.max_episode / self.args.goal_step), total_img_data))
         
+        print("Loading the test dataloaders ...")
+
+        test_path = os.path.join(self.root_folder, "data", self.args.test_env)
+        with open(test_path) as f:
+            self.test_env_list = [line.rstrip() for line in f.readlines()]
+
+        for env_name in tqdm.tqdm(self.test_env_list):
+            is_anymal_frame = False
+            sensorOffsetX = 0.0
+            camera_tilt = 0.0
+            if 'anymal' in env_name:
+                is_anymal_frame = True
+                sensorOffsetX = self.args.sensor_offsetX_ANYmal
+                camera_tilt = self.args.camera_tilt
+            elif 'tilt' in env_name:
+                camera_tilt = self.args.camera_tilt
+            data_path = os.path.join(*[self.args.data_root, self.args.env_type, env_name])
+
+            test_data = PlannerData(root=data_path,
+                                        train=False,
+                                        transform=depth_transform,
+                                        sensorOffsetX=sensorOffsetX,
+                                        ratio=0,
+                                        is_robot=is_anymal_frame,
+                                        goal_step=self.args.goal_step,
+                                        max_episode=self.args.max_episode,
+                                        max_depth=self.args.max_camera_depth, 
+                                        is_generate_split=True)
+            
+            print(f"Env Name: {env_name} | Number of images: {len(test_data)}")
+
+            self.test_loader_list.append(DataLoader(test_data, batch_size=self.args.batch_size, shuffle=False, num_workers=2, drop_last=False))
+             # Load Map and Trajectory Class
+            map_name = "tsdf1"
+            traj_cost = TrajCost(self.args.gpu_id)
+            traj_cost.SetMap(data_path, map_name)
+
+            self.test_traj_cost_list.append(traj_cost)
+            self.test_traj_viz_list.append(TrajViz(data_path, map_name=map_name, cameraTilt=camera_tilt))
+
         return None
 
     def MapObsLoss(self, preds, fear, traj_cost, odom, goal, step=0.1):
@@ -207,11 +256,13 @@ class PlannerNetTrainer:
 
                 loss.backward()
                 self.optimizer.step()
+                self.scheduler.step()
                 train_loss += loss.item()
                 enumerater.set_description("Epoch: %d in Env: (%d/%d) - train loss: %.4f on %d/%d" % (epoch, env_id+1, env_num, train_loss/(batch_idx+1), batch_idx, batches))
             
             loss_sum += train_loss/(batch_idx+1)
             wandb.log({"Running Loss": train_loss/(batch_idx+1)})
+            wandb.log({"learning_rate": self.scheduler.get_last_lr()[0]})
             
         loss_sum /= env_num
 
@@ -232,8 +283,7 @@ class PlannerNetTrainer:
 
             self.log_message("Epoch: %d | Training Loss: %f | Val Loss: %f | Duration: %f" % (epoch, train_loss, val_loss, duration))
             # Log metrics to wandb
-            wandb.log({"Avg Training Loss": train_loss, "Validation Loss": val_loss, "Duration (min)": duration})
-            
+            wandb.log({"Epoch": epoch,"Avg Training Loss": train_loss, "Validation Loss": val_loss, "Duration (min)": duration})
             if val_loss < self.best_loss:
                 self.log_message("Save model of epoch %d" % epoch)
                 torch.save((self.net, val_loss), self.args.model_save)
@@ -242,12 +292,13 @@ class PlannerNetTrainer:
                 self.log_message("Epoch: %d model saved | Current Min Val Loss: %f" % (epoch, val_loss))
 
             self.log_message("------------------------------------------------------------------------")
-            if self.scheduler.step(val_loss):
-                self.log_message('Early Stopping!')
-                break
-            
-         # Close wandb run at the end of training
-        self.wandb_run.finish()
+            # if self.scheduler.step(val_loss):
+            #     self.log_message('Early Stopping!')
+            #     break
+            test_loss = self.evaluate_test()
+            wandb.log({"Test_loss/Current": test_loss})
+        
+        self.log_message("Training Completed!, now evaluating on test set")
     
     def log_message(self, message):
         with open(self.args.log_save, 'a') as f:
@@ -302,6 +353,32 @@ class PlannerNetTrainer:
 
                 return test_loss / total_batches  # Compute mean test_loss
 
+    def evaluate_test(self):
+        self.net.eval()
+        test_loss = 0
+        total_batches = 0
+
+        with torch.no_grad():
+            for i, (test_loader, traj_cost, traj_viz) in enumerate(zip(self.test_loader_list, self.test_traj_cost_list, self.test_traj_viz_list)):
+                env_name = self.test_env_list[i]
+                env_loss = 0
+                for batch_idx, inputs in enumerate(test_loader):
+                    total_batches += 1  # Increment total number of batches
+                    if torch.cuda.is_available():
+                        image = inputs[0].cuda(self.args.gpu_id)
+                        odom  = inputs[1].cuda(self.args.gpu_id)
+                        goal  = inputs[2].cuda(self.args.gpu_id)
+
+                    preds, fear = self.net(image, goal)
+                    loss, waypoints = self.MapObsLoss(preds, fear, traj_cost, odom, goal)
+                    test_loss += loss.item()
+                    env_loss += loss.item()
+                
+                wandb.log({f"Test_loss/{env_name}": env_loss / len(test_loader)})
+                print(f"Test Loss for {env_name}: {env_loss / len(test_loader)}")
+            
+        return test_loss / total_batches
+
     def parse_args(self):
         parser = argparse.ArgumentParser(description='Training script for PlannerNet')
 
@@ -310,6 +387,7 @@ class PlannerNetTrainer:
         # dataConfig
         parser.add_argument("--data-root", type=str, default=os.path.join(self.root_folder, self.config['dataConfig'].get('data-root')), help="dataset root folder")
         parser.add_argument('--env-id', type=str, default=self.config['dataConfig'].get('env-id'), help='environment id list')
+        parser.add_argument('--test-env', type=str, default=self.config['dataConfig'].get('test-env'), help='test environment id list')
         parser.add_argument('--env_type', type=str, default=self.config['dataConfig'].get('env_type'), help='the dataset type')
         parser.add_argument('--crop-size', nargs='+', type=int, default=self.config['dataConfig'].get('crop-size'), help='image crop size')
         parser.add_argument('--max-camera-depth', type=float, default=self.config['dataConfig'].get('max-camera-depth'), help='maximum depth detection of camera, unit: meter')
@@ -354,14 +432,23 @@ class PlannerNetTrainer:
 
         self.args = parser.parse_args()
 
-        self.args.model_save = os.path.join(self.root_folder, f"models/{current_date}/{self.args.exp_name}.pt")
+        if self.args.training == True:
+            self.args.model_save = os.path.join(self.root_folder, f"models/{current_date}/{self.args.exp_name}.pt")
         
  
 def main():
     trainer = PlannerNetTrainer()
     if trainer.args.training == True:
         trainer.train()
-    trainer.evaluate(is_visualize=True)
+    
+    # Laod the best model and evaluate on test set
+    print(f"Loading the best model {trainer.args.model_save} and evaluating on test set")
+    trainer.net, trainer.best_loss = torch.load(trainer.args.model_save, map_location=torch.device("cpu"))
+    if torch.cuda.is_available():
+        trainer.net = trainer.net.cuda(trainer.args.gpu_id)
+    test_loss = trainer.evaluate_test()
+    wandb.log({"Test_loss/Final": test_loss})
+    trainer.wandb_run.finish()
 
 if __name__ == "__main__":
     main()

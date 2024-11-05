@@ -2,6 +2,7 @@
     "dataConfig": {
         "data-root": "/media/patelm/ssd/iPlanner_TrainingData/data",
         "env-id": "training_list.txt",
+        "test-env": "test_list.txt",
         "env_type": "TrainingData",
         "crop-size": [192, 320],
         "max-camera-depth": 10.0

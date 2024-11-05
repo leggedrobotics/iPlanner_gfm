@@ -52,7 +52,7 @@ class _RepeatSampler(object):
             yield from iter(self.sampler)
 
 class PlannerData(Dataset):
-    def __init__(self, root, max_episode, goal_step, train, ratio=0.9, max_depth=10.0, sensorOffsetX=0.0, transform=None, is_robot=True):
+    def __init__(self, root, max_episode, goal_step, train, ratio=0.9, max_depth=10.0, sensorOffsetX=0.0, transform=None, is_robot=True, is_generate_split=False):
         super().__init__()
         self.transform = transform
         self.is_robot = is_robot
@@ -95,18 +95,22 @@ class PlannerData(Dataset):
         N = len(self.odom_list)
 
         indexfile = os.path.join(img_path, 'split.pt')
-        is_generate_split = True;
-        if os.path.exists(indexfile):
-            train_index, test_index = torch.load(indexfile)
-            if len(train_index)+len(test_index) == N:
-                is_generate_split = False
-            else:
-                print("Data changed! Generate a new split file")
+        # # is_generate_split = True;
+        # if os.path.exists(indexfile):
+        #     train_index, test_index = torch.load(indexfile)
+        #     if len(train_index)+len(test_index) == N:
+        #         is_generate_split = False
+        #     else:
+        #         print("Data changed! Generate a new split file")
+        if not os.path.exists(indexfile):
+            is_generate_split = True
         if (is_generate_split):
             indices = range(N)
             train_index = sample(indices, int(ratio*N))
             test_index = np.delete(indices, train_index)
             torch.save((train_index, test_index), indexfile)
+        else:
+            train_index, test_index = torch.load(indexfile)
 
         if train == True:
             self.img_filename = itemgetter(*train_index)(self.img_filename)
